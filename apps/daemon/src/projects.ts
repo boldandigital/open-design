@@ -89,6 +89,30 @@ function hasExternalProjectRoot(metadata?) {
   return path.isAbsolute(path.normalize(metadata.baseDir));
 }
 
+// Typed refusal for the hidden-path rule below. A plain Error here is
+// indistinguishable from an internal fault, so the route catch blocks used to
+// flatten it into `500 INTERNAL_ERROR: "upload failed"`. This class keeps the
+// refusal itself byte-for-byte identical while giving callers a stable code
+// they can map to a legible 4xx.
+//
+// It deliberately carries ONLY the offending path SEGMENT (never the imported
+// project's absolute root, a directory listing, or file content) so the
+// message stays safe to hand back to the client.
+export class ImportedProjectHiddenPathError extends Error {
+  code = 'IMPORTED_PROJECT_HIDDEN_PATH';
+
+  readonly segment: string;
+
+  constructor(segment: string) {
+    super(
+      `hidden path segment "${segment}" is not accessible in imported folders; ` +
+        'imported projects only expose visible paths',
+    );
+    this.name = 'ImportedProjectHiddenPathError';
+    this.segment = segment;
+  }
+}
+
 // For folder-imported projects (external baseDir) the file API resolves under
 // the user's OWN directory, so a hidden path segment (.ssh, .aws, .gnupg, …)
 // would let read/write/delete/rename/folder ops reach credential dotfiles that
@@ -100,8 +124,9 @@ function hasExternalProjectRoot(metadata?) {
 export function assertVisibleForImportedProject(name, metadata?) {
   if (!hasExternalProjectRoot(metadata)) return;
   const segments = String(name ?? '').replace(/\\/g, '/').split('/').filter(Boolean);
-  if (segments.some((segment) => segment.startsWith('.'))) {
-    throw new Error('hidden path segments are not accessible in imported folders');
+  const hiddenSegment = segments.find((segment) => segment.startsWith('.'));
+  if (hiddenSegment) {
+    throw new ImportedProjectHiddenPathError(hiddenSegment);
   }
 }
 

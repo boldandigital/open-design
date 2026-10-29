@@ -63,6 +63,11 @@ import type { RouteDeps } from '../../server-context.js';
 import { listSkills } from '../../skills.js';
 import { isSafeId } from '../../projects.js';
 import {
+  isImportedProjectHiddenPathError,
+  sendImportedProjectHiddenPathError,
+  sendProjectUploadError,
+} from '../../http/imported-project-hidden-path.js';
+import {
   ensureTeamProjectCommentConversations,
   SYNC_KEEPS_UPDATED_AT,
 } from '../../db.js';
@@ -5718,6 +5723,7 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
       const body = { folders };
       res.json(body);
     } catch (err: any) {
+      if (sendImportedProjectHiddenPathError(res, err)) return;
       sendApiError(res, 400, 'BAD_REQUEST', String(err));
     }
   });
@@ -5752,6 +5758,7 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
       const body = { folder };
       res.json(body);
     } catch (err: any) {
+      if (sendImportedProjectHiddenPathError(res, err)) return;
       sendApiError(res, 400, 'BAD_REQUEST', String(err?.message || err));
     }
   });
@@ -5786,6 +5793,7 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
       const body = { ok: true };
       res.json(body);
     } catch (err: any) {
+      if (sendImportedProjectHiddenPathError(res, err)) return;
       sendApiError(res, 400, 'BAD_REQUEST', String(err?.message || err));
     }
   });
@@ -6550,6 +6558,7 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
       );
       res.type(file.mime).send(file.buffer);
     } catch (err: any) {
+      if (sendImportedProjectHiddenPathError(res, err)) return;
       const status = err && err.code === 'ENOENT' ? 404 : 400;
       sendApiError(
         res,
@@ -6783,6 +6792,7 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
         };
         res.json(body);
       } catch (err: any) {
+        if (sendImportedProjectHiddenPathError(res, err)) return;
         const message = String(err?.message || err);
         if (/^invalid (source|versionSource);/u.test(message)) {
           return sendApiError(res, 400, 'BAD_REQUEST', message);
@@ -6855,6 +6865,7 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
       const body = result;
       res.json(body);
     } catch (err: any) {
+      if (sendImportedProjectHiddenPathError(res, err)) return;
       if (err?.code === 'EEXIST') {
         return sendApiError(res, 409, 'CONFLICT', String(err?.message || err));
       }
@@ -6889,6 +6900,7 @@ export function registerProjectFileRoutes(app: Express, ctx: RegisterProjectFile
       const body = { ok: true };
       res.json(body);
     } catch (err: any) {
+      if (sendImportedProjectHiddenPathError(res, err)) return;
       const status = err && err.code === 'ENOENT' ? 404 : 400;
       sendApiError(
         res,
@@ -6987,7 +6999,10 @@ export function registerProjectUploadRoutes(app: Express, ctx: RegisterProjectUp
                 project.metadata,
               );
             }
-          } catch {
+          } catch (err) {
+            // A hidden-path refusal must abort the whole upload, never be
+            // skipped like a file that vanished mid-flight.
+            if (isImportedProjectHiddenPathError(err)) throw err;
             // skip files that vanished mid-flight
           }
         }
@@ -6995,7 +7010,7 @@ export function registerProjectUploadRoutes(app: Express, ctx: RegisterProjectUp
         const body = { files: out };
         res.json(body);
       } catch (err: any) {
-        sendApiError(res, 500, 'INTERNAL_ERROR', 'upload failed');
+        sendProjectUploadError(res, err);
       }
     },
   );

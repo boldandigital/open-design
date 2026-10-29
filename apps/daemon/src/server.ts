@@ -73,6 +73,7 @@ export {
   createCompatApiError,
   createCompatApiErrorResponse,
 } from './http/api-errors.js';
+import { sendImportedProjectHiddenPathError } from './http/imported-project-hidden-path.js';
 import {
   applyBakedPreviews,
   resolvePluginPreviewsDir,
@@ -2424,7 +2425,7 @@ function handleProjectUpload(req, res, next) {
   });
 }
 
-function sendMulterError(res, err) {
+export function sendMulterError(res, err) {
   if (err instanceof multer.MulterError) {
     const code = err.code || 'UPLOAD_ERROR';
     const statusByCode = {
@@ -2456,6 +2457,10 @@ function sendMulterError(res, err) {
       message,
       { details: { legacyCode: code } },
     );
+  }
+
+  if (sendImportedProjectHiddenPathError(res, err)) {
+    return;
   }
 
   if (err) {

@@ -139,6 +139,13 @@ export const API_ERROR_CODES = [
   // registered owner unshares the project, so clients must not render it as
   // a "try again later" error.
   'TEAM_PROJECT_OWNER_CONFLICT',
+  // A file operation targeted a hidden path segment (".ssh", ".aws", ...) inside
+  // an IMPORTED project (an external folder with its own baseDir). The daemon
+  // deliberately refuses to expose those segments, so the request is not a
+  // server fault: it is a well-formed request that names something this
+  // project type cannot address. Clients must surface it verbatim instead of
+  // retrying it as an opaque internal error.
+  'IMPORTED_PROJECT_HIDDEN_PATH',
   'INTERNAL_ERROR',
 ] as const;
 
